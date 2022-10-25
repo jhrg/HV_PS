@@ -49,7 +49,7 @@ void setup() {
 
   OCR1A = 0x10; // 10-bit resolution --> 0x0000 - 0x03FF
 
-  Serial.println("delta, abs_delta, voltage, pwm_delta");
+  Serial.println("voltage, v_delta, correction");
 }
 
 // TODO Remove double set_point_pc = 44.7; // percent of 1024 counts
@@ -160,15 +160,28 @@ void loop() {
   if ((millis() - last_update >= SAMPLE_PERIOD))
   {
     // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
+    int32_t v_delta = SET_POINT - voltage;
+    int32_t correction = v_delta * 0.04;
+    correction = abs(correction);
+
+#if 0
+    char str[64];
+    snprintf(str, 64, "%ld, %ld, %ld, %d", voltage, v_delta, correction, OCR1A);
+    Serial.println(str);
+#endif
+
     if (voltage > SET_POINT + ADC_NOISE)
     {
-      if (OCR1A > 0x0010)
-        OCR1A -= 1;
+      if (OCR1A > 0x0010) {
+        OCR1A -= (correction > 1) ? correction : 1;
+      }
     }
     else if (voltage < SET_POINT - ADC_NOISE)
     {
-      if (OCR1A < 0x01F0)
-        OCR1A += 1;
+      if (OCR1A < 0x01F0) {
+        //OCR1A += 1;
+        OCR1A += (correction > 1) ? correction : 1;
+      }
     }
 
     last_update = millis();
