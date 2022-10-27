@@ -46,7 +46,7 @@ void setup() {
 
 #define Kp 0.01
 #define Ki 0
-#define Kd 1
+#define Kd 0
 
 #define ADC_NOISE 3
 
@@ -78,7 +78,7 @@ void loop()
     last_error = error;
 
 #if LOGGING
-    char str[64];
+    char str[128];
     snprintf(str, 64, "%ld, %ld, %ld, %ld, %ld, %ld, %d", voltage, error, delta_t, cum_error, rate_error, correction, OCR1A);
     Serial.println(str);
 #endif
