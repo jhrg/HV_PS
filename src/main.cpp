@@ -54,6 +54,7 @@ int32_t pid_correction(int32_t now, int32_t voltage) {
     return correction;
 }
 
+#if 0
 #define Kp1 0.07
 
 int32_t P_correction(int32_t voltage)
@@ -109,6 +110,7 @@ int32_t simple_correction(int32_t voltage)
     return 0;
   }
 }
+#endif
 
 void setup() {
     // put your setup code here, to run once:
@@ -124,6 +126,7 @@ void setup() {
 
     pinMode(A0, INPUT);
 
+#if TIMER_1  // Pin 9
     // Use Timer1 for the HV PS control signal
     // Set the timer to Fast PWM. COM1A1:0 --> 1, 0
     // Set the timer for 9-bit resolution. WGM13:0 --> 0, 1, 1, 0
@@ -134,6 +137,19 @@ void setup() {
     // Start out with low voltage
     // OCR1A is Arduino Pin 9
     OCR1A = 0x010; // 9-bit resolution --> 0x0000 - 0x01FF
+#else              // TIMER_2, Pin 3
+    // Use Timer2 for the HV PS control signal
+    // COM2B 1:0 --> 1, 0 (non-inverted)
+    // WGM22:0 --> 1 (0, 0, 1) (phase-correct PWM, 0xFF top)
+    TCCR2A = 0;
+    TCCR2A = _BV(COM2B1) | _BV(WGM20);
+    // Set the pre-scaler at 1 (62.5 kHz)
+    TCCR2B = _BV(CS20);
+
+    // Start out with low voltage
+    // OCR1A is Arduino Pin 3
+    OCR2B = 0x010;  // 0-bit resolution --> 0x00 - 0xFF
+#endif
 
 #if PID_LOGGING
     Serial.println("voltage, error, delta_t, cum_error, rate_error, correction, OCR1A");
@@ -153,7 +169,11 @@ void loop() {
         // OCR1A += simple_correction(voltage);
         // OCR1A += two_factor_correction(voltage);
         // OCR1A += P_correction(voltage);
+#if TIMER_1
         OCR1A += pid_correction(now, voltage);
+#else
+        OCR2B += pid_correction(now, voltage);
+#endif
 
         last_time = millis();
 
