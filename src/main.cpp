@@ -10,8 +10,8 @@
 #define ADC_NOISE 3      //counts
 #define SAMPLE_PERIOD 10 // ms
 #define SET_POINT 455    // ~ 200v
-#define ORC1A_MIN 0x010
-#define ORC1A_MAX 0x1F0
+#define OCR1A_MIN 0x010
+#define OCR1A_MAX 0x1F0
 
 #if 0
 // these work for no load, but don't respond quickly with a load
@@ -37,16 +37,12 @@ int32_t pid_correction(int32_t now, int32_t voltage) {
 
     int32_t error = SET_POINT - voltage;
 
-    // old
-    // int32_t correction = error * Kp;
-    // correction = abs(correction);
-
     cum_error += error * delta_t;
     int32_t rate_error = (error - last_error) / delta_t;
 
     int32_t correction = Kp * error + Ki * cum_error + Kd * rate_error;
 
-    //last_time = now;
+    // last_time is updated by the caller
     last_error = error;
 
 #if PID_LOGGING
@@ -58,42 +54,60 @@ int32_t pid_correction(int32_t now, int32_t voltage) {
     return correction;
 }
 
-int32_t simple_correction(int32_t voltage) {
-    // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
-    if ((voltage > SET_POINT + ADC_NOISE) && (OCR1A > 0x0010)) {
-        return -1;
-    } else if ((voltage < SET_POINT - ADC_NOISE) && (OCR1A < 0x01F0)) {
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
-int32_t two_factor_correction(int32_t voltage) {
-    int32_t error = SET_POINT - voltage;
-
-    // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
-    if ((voltage > SET_POINT + ADC_NOISE) && (OCR1A > 0x0010)) {
-        return (error < -20) ? -10 : -1;
-    } else if ((voltage < SET_POINT - ADC_NOISE) && (OCR1A < 0x01F0)) {
-        return (error > 20) ? 10 : 1;
-    } else {
-        return 0;
-    }
-}
-
 #define Kp1 0.07
 
-int32_t P_correction(int32_t voltage) {
-    int32_t correction = (SET_POINT - voltage) * Kp1;
-    // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
-    if ((voltage > SET_POINT + ADC_NOISE) && (OCR1A > 0x0010)) {
-        return (correction < -1) ? correction : -1;
-    } else if ((voltage < SET_POINT - ADC_NOISE) && (OCR1A < 0x01F0)) {
-        return (correction > 1) ? correction : 1;
-    } else {
-        return 0;
-    }
+int32_t P_correction(int32_t voltage)
+{
+  int32_t correction = (SET_POINT - voltage) * Kp1;
+  // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
+  if ((voltage > SET_POINT + ADC_NOISE) && (OCR1A > 0x0010))
+  {
+    return (correction < -1) ? correction : -1;
+  }
+  else if ((voltage < SET_POINT - ADC_NOISE) && (OCR1A < 0x01F0))
+  {
+    return (correction > 1) ? correction : 1;
+  }
+  else
+  {
+    return 0;
+  }
+}
+
+int32_t two_factor_correction(int32_t voltage)
+{
+  int32_t error = SET_POINT - voltage;
+
+  // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
+  if ((voltage > SET_POINT + ADC_NOISE) && (OCR1A > 0x0010))
+  {
+    return (error < -20) ? -10 : -1;
+  }
+  else if ((voltage < SET_POINT - ADC_NOISE) && (OCR1A < 0x01F0))
+  {
+    return (error > 20) ? 10 : 1;
+  }
+  else
+  {
+    return 0;
+  }
+}
+
+int32_t simple_correction(int32_t voltage)
+{
+  // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
+  if ((voltage > SET_POINT + ADC_NOISE) && (OCR1A > 0x0010))
+  {
+    return -1;
+  }
+  else if ((voltage < SET_POINT - ADC_NOISE) && (OCR1A < 0x01F0))
+  {
+    return 1;
+  }
+  else
+  {
+    return 0;
+  }
 }
 
 void setup() {
