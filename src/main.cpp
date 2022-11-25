@@ -10,19 +10,10 @@
 #define ADC_NOISE 3      //counts
 #define SAMPLE_PERIOD 10 // ms
 #define SET_POINT 455    // ~ 200v
-#define OCR1A_MIN 0x010
-#define OCR1A_MAX 0x1F0
-
-#if 0
-// these work for no load, but don't respond quickly with a load
-#define Kp 0.009
-#define Ki 0.0000009
-#define Kd 10
-#endif
 
 #if 1
 // works with 14.8 mA, and 1 mA, sort of...
-#define Kp 0.04
+#define Kp 0.03
 #define Ki 0.00005
 #define Kd 10
 #endif
