@@ -5,7 +5,7 @@
 #include <Arduino.h>
 
 #define PID_LOGGING 0
-#define SIMPLE_LOGGING 0
+#define SIMPLE_LOGGING 1
 
 #define ADC_NOISE 3      //counts
 #define SAMPLE_PERIOD 10 // ms
@@ -118,6 +118,7 @@ void setup() {
     TCCR1B = _BV(WGM12) | _BV(CS10);
 
     // Start out with low voltage
+    // OCR1A is Arduino Pin 9
     OCR1A = 0x010; // 9-bit resolution --> 0x0000 - 0x01FF
 
 #if PID_LOGGING
