@@ -1,35 +1,42 @@
 
 /**
  * @brief Use the Atmel 328 to drive a high voltage power supply
-*/
+ */
 #include <Arduino.h>
 
 #define PID_LOGGING 0
 #define SIMPLE_LOGGING 1
 
-#define ADC_NOISE 3      //counts
+#define ADC_NOISE 3      // counts
 #define SAMPLE_PERIOD 10 // ms
 #define SET_POINT 455    // ~ 200v
 
-#if 1
+#if TIMER_1
 // works with 14.8 mA, and 1 mA, sort of...
-#define Kp 0.03
+#define Kp 0.04
 #define Ki 0.00005
 #define Kd 10
+#define REGISTER OCR1A
+#else
+#define Kp 0.04
+#define Ki 0.000005
+#define Kd 10.0
+#define REGISTER OCR2B
+#define THRESHOLD 4     // ADC_NOISE + 1
 #endif
 
 int32_t last_time = 0;
-int32_t last_error = 0;
-int32_t cum_error = 0;
+float last_error = 0;
+float cum_error = 0;
 
-int32_t pid_correction(int32_t now, int32_t voltage) {
+int32_t pid_correction(int32_t delta_t, int32_t voltage) {
     // delta time
-    int32_t delta_t = now - last_time;
+    //int32_t delta_t = (now - last_time);
 
-    int32_t error = SET_POINT - voltage;
+    float error = (float)(SET_POINT - voltage);
 
-    cum_error += error * delta_t;
-    int32_t rate_error = (error - last_error) / delta_t;
+    cum_error += error * (float)delta_t;
+    float rate_error = (error - last_error) / (float)delta_t;
 
     int32_t correction = Kp * error + Ki * cum_error + Kd * rate_error;
 
@@ -38,68 +45,52 @@ int32_t pid_correction(int32_t now, int32_t voltage) {
 
 #if PID_LOGGING
     char str[128];
-    snprintf(str, 64, "%ld, %ld, %ld, %ld, %ld, %ld, %d", voltage, error, delta_t, cum_error, rate_error, correction, OCR1A);
+    #define frac(f) ((int)(f*100)%100)
+    snprintf(str, 64, "%ld, %ld, %ld, %ld, %ld, %ld, %d", 
+            voltage, (long)error, delta_t, (long)cum_error, (long)rate_error, correction, OCR2B);
     Serial.println(str);
 #endif
 
     return correction;
 }
 
-#if 0
-#define Kp1 0.07
+#if 1
+#define Kp1 0.01
 
-int32_t P_correction(int32_t voltage)
-{
-  int32_t correction = (SET_POINT - voltage) * Kp1;
-  // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
-  if ((voltage > SET_POINT + ADC_NOISE) && (OCR1A > 0x0010))
-  {
-    return (correction < -1) ? correction : -1;
-  }
-  else if ((voltage < SET_POINT - ADC_NOISE) && (OCR1A < 0x01F0))
-  {
-    return (correction > 1) ? correction : 1;
-  }
-  else
-  {
-    return 0;
-  }
+int32_t P_correction(int32_t voltage) {
+    int32_t correction = (SET_POINT - voltage) * Kp1;
+    // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
+    if ((voltage > SET_POINT + ADC_NOISE) && (OCR2B > 0x0010)) {
+        return (correction < -1) ? correction : -1;
+    } else if ((voltage < SET_POINT - ADC_NOISE) && (OCR2B < 0x01F0)) {
+        return (correction > 1) ? correction : 1;
+    } else {
+        return 0;
+    }
 }
 
-int32_t two_factor_correction(int32_t voltage)
-{
-  int32_t error = SET_POINT - voltage;
+int32_t two_factor_correction(int32_t voltage) {
+    int32_t error = SET_POINT - voltage;
 
-  // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
-  if ((voltage > SET_POINT + ADC_NOISE) && (OCR1A > 0x0010))
-  {
-    return (error < -20) ? -10 : -1;
-  }
-  else if ((voltage < SET_POINT - ADC_NOISE) && (OCR1A < 0x01F0))
-  {
-    return (error > 20) ? 10 : 1;
-  }
-  else
-  {
-    return 0;
-  }
+    // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
+    if ((voltage > SET_POINT + ADC_NOISE) && (OCR2B > 0x10)) {
+        return (error < -50) ? -20 : -1;
+    } else if ((voltage < SET_POINT - ADC_NOISE) && (OCR2B < 0x80)) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
-int32_t simple_correction(int32_t voltage)
-{
-  // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
-  if ((voltage > SET_POINT + ADC_NOISE) && (OCR1A > 0x0010))
-  {
-    return -1;
-  }
-  else if ((voltage < SET_POINT - ADC_NOISE) && (OCR1A < 0x01F0))
-  {
-    return 1;
-  }
-  else
-  {
-    return 0;
-  }
+int32_t simple_correction(int32_t voltage) {
+    // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
+    if ((voltage > SET_POINT + ADC_NOISE) && (OCR2B > 0x0010)) {
+        return -1;
+    } else if ((voltage < SET_POINT - ADC_NOISE) && (OCR2B < 0x80)) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 #endif
 
@@ -117,7 +108,7 @@ void setup() {
 
     pinMode(A0, INPUT);
 
-#if TIMER_1  // Pin 9
+#if TIMER_1 // Pin 9
     // Use Timer1 for the HV PS control signal
     // Set the timer to Fast PWM. COM1A1:0 --> 1, 0
     // Set the timer for 9-bit resolution. WGM13:0 --> 0, 1, 1, 0
@@ -138,14 +129,14 @@ void setup() {
     TCCR2B = _BV(CS20);
 
     // Start out with low voltage
-    // OCR1A is Arduino Pin 3
-    OCR2B = 0x010;  // 0-bit resolution --> 0x00 - 0xFF
+    // OCR2B is Arduino Pin 3
+    OCR2B = 0x010; // 0-bit resolution --> 0x00 - 0xFF
 #endif
 
 #if PID_LOGGING
-    Serial.println("voltage, error, delta_t, cum_error, rate_error, correction, OCR1A");
+    Serial.println("voltage, error, delta_t, cum_error, rate_error, correction, OCR2B");
 #elif SIMPLE_LOGGING
-    Serial.println("voltage, OCR1A");
+    Serial.println("voltage, OCR2B");
 #endif
 
     last_time = millis();
@@ -161,16 +152,26 @@ void loop() {
         // OCR1A += two_factor_correction(voltage);
         // OCR1A += P_correction(voltage);
 #if TIMER_1
-        OCR1A += pid_correction(now, voltage);
+        // OCR1A += simple_correction(voltage);
+        // OCR1A += two_factor_correction(voltage);
+        // OCR1A += P_correction(voltage);
+        // OCR1A += pid_correction(now, voltage);
 #else
-        OCR2B += pid_correction(now, voltage);
+        if (voltage < THRESHOLD)
+            REGISTER = 0;
+        else {
+            REGISTER += simple_correction(voltage);
+            // REGISTER += two_factor_correction(voltage);
+            // REGISTER += P_correction(voltage);
+            //REGISTER += pid_correction(now - last_time, voltage);
+        }
 #endif
 
         last_time = millis();
 
 #if SIMPLE_LOGGING
         char str[128];
-        snprintf(str, 64, "%ld, %d", voltage, OCR1A);
+        snprintf(str, 64, "%ld, %d", voltage, OCR2B);
         Serial.println(str);
 #endif
     }
