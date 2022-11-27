@@ -13,7 +13,7 @@
 
 #if TIMER_1
 // works with 14.8 mA, and 1 mA, sort of...
-#define Kp 0.04
+#define Kp 0.03
 #define Ki 0.00005
 #define Kd 10
 #define REGISTER OCR1A
