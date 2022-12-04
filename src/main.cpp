@@ -22,23 +22,22 @@
 #define Ki 0.000005
 #define Kd 10.0
 #define REGISTER OCR2B
-#define THRESHOLD 4     // ADC_NOISE + 1
+#define THRESHOLD 4 // ADC_NOISE + 1
 #endif
 
-#include <PID_v1.h>
 #include <PID_AutoTune_v0.h>
-
+#include <PID_v1.h>
 
 byte ATuneModeRemember = 2;
 double input = 80, output = 50, setpoint = SET_POINT;
-double kp = 2, ki = 0.5, kd = 2;
+double kp = 0.8, ki = 0.4, kd = 0.0;
 
-double kpmodel = 1.5, taup = 100, theta[50];
+//double kpmodel = 1.5, taup = 100, theta[50];
 double outputStart = 5;
-double aTuneStep = 50, aTuneNoise = 1, aTuneStartValue = 100;
+double aTuneStep = 25, aTuneNoise = 4, aTuneStartValue = 100;
 unsigned int aTuneLookBack = 20;
 
-boolean tuning = true;
+boolean tuning = false;
 unsigned long serialTime = 0;
 
 PID myPID(&input, &output, &setpoint, kp, ki, kd, DIRECT);
@@ -50,7 +49,7 @@ float cum_error = 0;
 
 int32_t pid_correction(int32_t delta_t, int32_t voltage) {
     // delta time
-    //int32_t delta_t = (now - last_time);
+    // int32_t delta_t = (now - last_time);
 
     float error = (float)(SET_POINT - voltage);
 
@@ -64,9 +63,9 @@ int32_t pid_correction(int32_t delta_t, int32_t voltage) {
 
 #if PID_LOGGING
     char str[128];
-    #define frac(f) ((int)(f*100)%100)
-    snprintf(str, 64, "%ld, %ld, %ld, %ld, %ld, %ld, %d", 
-            voltage, (long)error, delta_t, (long)cum_error, (long)rate_error, correction, OCR2B);
+#define frac(f) ((int)(f * 100) % 100)
+    snprintf(str, 64, "%ld, %ld, %ld, %ld, %ld, %ld, %d",
+             voltage, (long)error, delta_t, (long)cum_error, (long)rate_error, correction, OCR2B);
     Serial.println(str);
 #endif
 
@@ -89,7 +88,7 @@ void changeAutoTune() {
         aTune.SetLookbackSec((int)aTuneLookBack);
         AutoTuneHelper(true);
         tuning = true;
-    } else {  // cancel autotune
+    } else { // cancel autotune
         aTune.Cancel();
         tuning = false;
         AutoTuneHelper(false);
@@ -125,7 +124,8 @@ void SerialReceive() {
     if (Serial.available()) {
         char b = Serial.read();
         Serial.flush();
-        if ((b == '1' && !tuning) || (b != '1' && tuning)) changeAutoTune();
+        if ((b == '1' && !tuning) || (b != '1' && tuning))
+            changeAutoTune();
     }
 }
 
@@ -163,7 +163,7 @@ void setup() {
 
     input = analogRead(A0);
     // setpoint = SET_POINT;
-    myPID.SetOutputLimits(10, 200);
+    myPID.SetOutputLimits(10, 150);
     myPID.SetSampleTime(SAMPLE_PERIOD);
     myPID.SetMode(AUTOMATIC);
 
@@ -177,7 +177,7 @@ void setup() {
 }
 
 void loop() {
-    
+
     input = analogRead(A0);
 
     if (tuning) {
@@ -185,7 +185,7 @@ void loop() {
         if (val != 0) {
             tuning = false;
         }
-        if (!tuning) {  // we're done, set the tuning parameters
+        if (!tuning) { // we're done, set the tuning parameters
             kp = aTune.GetKp();
             ki = aTune.GetKi();
             kd = aTune.GetKd();
@@ -204,8 +204,9 @@ void loop() {
         SerialSend();
         serialTime += 500;
     }
-
+#if 0
     char str[128];
     snprintf(str, 64, "%ld, %d", (long)input, OCR2B);
     Serial.println(str);
+#endif
 }
