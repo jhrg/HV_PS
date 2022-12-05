@@ -41,12 +41,6 @@ void setup() {
     // OCR2B is Arduino Pin 3
     OCR2B = 0x010; // 0-bit resolution --> 0x00 - 0xFF
 
-#if PID_LOGGING
-    Serial.println("voltage, error, delta_t, cum_error, rate_error, correction, OCR2B");
-#elif SIMPLE_LOGGING
-    Serial.println("voltage, OCR2B");
-#endif
-
     input = analogRead(A0);
     // setpoint = SET_POINT;
     myPID.SetOutputLimits(10, 150);
@@ -56,6 +50,12 @@ void setup() {
 
 void loop() {
     input = analogRead(A0);
+#if PID_DIAGNOSTIC
+    PORTD |= _BV(PORTD6);
+#endif
     myPID.Compute();
+#if PID_DIAGNOSTIC
+    PORTD &= ~_BV(PORTD6);
+#endif
     analogWrite(3, output);
 }
