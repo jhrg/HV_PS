@@ -22,16 +22,34 @@
 #define Ki 0.000005
 #define Kd 10.0
 #define REGISTER OCR2B
-#define THRESHOLD 4     // ADC_NOISE + 1
+#define THRESHOLD 4 // ADC_NOISE + 1
 #endif
 
+#include <PID_AutoTune_v0.h>
+#include <PID_v1.h>
+
+byte ATuneModeRemember = 2;
+double input = 80, output = 50, setpoint = SET_POINT;
+double kp = 0.8, ki = 0.4, kd = 0.0;
+
+//double kpmodel = 1.5, taup = 100, theta[50];
+double outputStart = 5;
+double aTuneStep = 25, aTuneNoise = 4, aTuneStartValue = 100;
+unsigned int aTuneLookBack = 20;
+
+boolean tuning = false;
+unsigned long serialTime = 0;
+
+PID myPID(&input, &output, &setpoint, kp, ki, kd, DIRECT);
+
+PID_ATune aTune(&input, &output);
 int32_t last_time = 0;
 float last_error = 0;
 float cum_error = 0;
 
 int32_t pid_correction(int32_t delta_t, int32_t voltage) {
     // delta time
-    //int32_t delta_t = (now - last_time);
+    // int32_t delta_t = (now - last_time);
 
     float error = (float)(SET_POINT - voltage);
 
@@ -45,54 +63,71 @@ int32_t pid_correction(int32_t delta_t, int32_t voltage) {
 
 #if PID_LOGGING
     char str[128];
-    #define frac(f) ((int)(f*100)%100)
-    snprintf(str, 64, "%ld, %ld, %ld, %ld, %ld, %ld, %d", 
-            voltage, (long)error, delta_t, (long)cum_error, (long)rate_error, correction, OCR2B);
+#define frac(f) ((int)(f * 100) % 100)
+    snprintf(str, 64, "%ld, %ld, %ld, %ld, %ld, %ld, %d",
+             voltage, (long)error, delta_t, (long)cum_error, (long)rate_error, correction, OCR2B);
     Serial.println(str);
 #endif
 
     return correction;
 }
 
-#if 1
-#define Kp1 0.01
+void AutoTuneHelper(boolean start) {
+    if (start)
+        ATuneModeRemember = myPID.GetMode();
+    else
+        myPID.SetMode(ATuneModeRemember);
+}
 
-int32_t P_correction(int32_t voltage) {
-    int32_t correction = (SET_POINT - voltage) * Kp1;
-    // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
-    if ((voltage > SET_POINT + ADC_NOISE) && (OCR2B > 0x0010)) {
-        return (correction < -1) ? correction : -1;
-    } else if ((voltage < SET_POINT - ADC_NOISE) && (OCR2B < 0x01F0)) {
-        return (correction > 1) ? correction : 1;
-    } else {
-        return 0;
+void changeAutoTune() {
+    if (!tuning) {
+        // Set the output to the desired starting frequency.
+        output = aTuneStartValue;
+        aTune.SetNoiseBand(aTuneNoise);
+        aTune.SetOutputStep(aTuneStep);
+        aTune.SetLookbackSec((int)aTuneLookBack);
+        AutoTuneHelper(true);
+        tuning = true;
+    } else { // cancel autotune
+        aTune.Cancel();
+        tuning = false;
+        AutoTuneHelper(false);
     }
 }
 
-int32_t two_factor_correction(int32_t voltage) {
-    int32_t error = SET_POINT - voltage;
-
-    // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
-    if ((voltage > SET_POINT + ADC_NOISE) && (OCR2B > 0x10)) {
-        return (error < -50) ? -20 : -1;
-    } else if ((voltage < SET_POINT - ADC_NOISE) && (OCR2B < 0x80)) {
-        return 1;
+void SerialSend() {
+    Serial.print("setpoint: ");
+    Serial.print(setpoint);
+    Serial.print(" ");
+    Serial.print("input: ");
+    Serial.print(input);
+    Serial.print(" ");
+    Serial.print("output: ");
+    Serial.print(output);
+    Serial.print(" ");
+    if (tuning) {
+        Serial.println("tuning mode");
     } else {
-        return 0;
+        Serial.print("kp: ");
+        Serial.print(myPID.GetKp());
+        Serial.print(" ");
+        Serial.print("ki: ");
+        Serial.print(myPID.GetKi());
+        Serial.print(" ");
+        Serial.print("kd: ");
+        Serial.print(myPID.GetKd());
+        Serial.println();
     }
 }
 
-int32_t simple_correction(int32_t voltage) {
-    // Cap the OCR0A value between 0x010 and 0x1F0 to avoid extremes
-    if ((voltage > SET_POINT + ADC_NOISE) && (OCR2B > 0x0010)) {
-        return -1;
-    } else if ((voltage < SET_POINT - ADC_NOISE) && (OCR2B < 0x80)) {
-        return 1;
-    } else {
-        return 0;
+void SerialReceive() {
+    if (Serial.available()) {
+        char b = Serial.read();
+        Serial.flush();
+        if ((b == '1' && !tuning) || (b != '1' && tuning))
+            changeAutoTune();
     }
 }
-#endif
 
 void setup() {
     // put your setup code here, to run once:
@@ -108,18 +143,6 @@ void setup() {
 
     pinMode(A0, INPUT);
 
-#if TIMER_1 // Pin 9
-    // Use Timer1 for the HV PS control signal
-    // Set the timer to Fast PWM. COM1A1:0 --> 1, 0
-    // Set the timer for 9-bit resolution. WGM13:0 --> 0, 1, 1, 0
-    TCCR1A = _BV(COM1A1) | _BV(WGM11);
-    // Set the pre-scaler at 1 (31.25 kHz) and WGM bit 2
-    TCCR1B = _BV(WGM12) | _BV(CS10);
-
-    // Start out with low voltage
-    // OCR1A is Arduino Pin 9
-    OCR1A = 0x010; // 9-bit resolution --> 0x0000 - 0x01FF
-#else              // TIMER_2, Pin 3
     // Use Timer2 for the HV PS control signal
     // COM2B 1:0 --> 1, 0 (non-inverted)
     // WGM22:0 --> 1 (0, 0, 1) (phase-correct PWM, 0xFF top)
@@ -131,7 +154,6 @@ void setup() {
     // Start out with low voltage
     // OCR2B is Arduino Pin 3
     OCR2B = 0x010; // 0-bit resolution --> 0x00 - 0xFF
-#endif
 
 #if PID_LOGGING
     Serial.println("voltage, error, delta_t, cum_error, rate_error, correction, OCR2B");
@@ -139,40 +161,52 @@ void setup() {
     Serial.println("voltage, OCR2B");
 #endif
 
+    input = analogRead(A0);
+    // setpoint = SET_POINT;
+    myPID.SetOutputLimits(10, 150);
+    myPID.SetSampleTime(SAMPLE_PERIOD);
+    myPID.SetMode(AUTOMATIC);
+
+    if (tuning) {
+        tuning = false;
+        changeAutoTune();
+        tuning = true;
+    }
+
     last_time = millis();
 }
 
 void loop() {
-    int32_t now = millis();
 
-    if ((now - last_time >= SAMPLE_PERIOD)) {
-        int32_t voltage = analogRead(A0); // 0 - 1023 -> 0 - 5v;
+    input = analogRead(A0);
 
-        // OCR1A += simple_correction(voltage);
-        // OCR1A += two_factor_correction(voltage);
-        // OCR1A += P_correction(voltage);
-#if TIMER_1
-        // OCR1A += simple_correction(voltage);
-        // OCR1A += two_factor_correction(voltage);
-        // OCR1A += P_correction(voltage);
-        // OCR1A += pid_correction(now, voltage);
-#else
-        if (voltage < THRESHOLD)
-            REGISTER = 0;
-        else {
-            REGISTER += simple_correction(voltage);
-            // REGISTER += two_factor_correction(voltage);
-            // REGISTER += P_correction(voltage);
-            //REGISTER += pid_correction(now - last_time, voltage);
+    if (tuning) {
+        byte val = (aTune.Runtime());
+        if (val != 0) {
+            tuning = false;
         }
-#endif
-
-        last_time = millis();
-
-#if SIMPLE_LOGGING
-        char str[128];
-        snprintf(str, 64, "%ld, %d", voltage, OCR2B);
-        Serial.println(str);
-#endif
+        if (!tuning) { // we're done, set the tuning parameters
+            kp = aTune.GetKp();
+            ki = aTune.GetKi();
+            kd = aTune.GetKd();
+            myPID.SetTunings(kp, ki, kd);
+            AutoTuneHelper(false);
+        }
+    } else {
+        myPID.Compute();
     }
+
+    analogWrite(3, output);
+
+    // send-receive with processing if it's time
+    if (millis() > serialTime) {
+        SerialReceive();
+        SerialSend();
+        serialTime += 500;
+    }
+#if 0
+    char str[128];
+    snprintf(str, 64, "%ld, %d", (long)input, OCR2B);
+    Serial.println(str);
+#endif
 }
