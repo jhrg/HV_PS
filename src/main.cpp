@@ -57,5 +57,6 @@ void loop() {
 #if PID_DIAGNOSTIC
     PORTD &= ~_BV(PORTD6);
 #endif
-    analogWrite(3, output);
+    OCR2B = (unsigned char)output;
+    // analogWrite(3, output);
 }
