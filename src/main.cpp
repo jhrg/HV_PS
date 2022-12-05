@@ -4,34 +4,16 @@
  */
 #include <Arduino.h>
 
-#define PID_LOGGING 0
-#define SIMPLE_LOGGING 1
-
 #define ADC_NOISE 3      // counts
 #define SAMPLE_PERIOD 10 // ms
 #define SET_POINT 455    // ~ 200v
 
-#if TIMER_1
-// works with 14.8 mA, and 1 mA, sort of...
-#define Kp 0.03
-#define Ki 0.00005
-#define Kd 10
-#define REGISTER OCR1A
-#else
-#define Kp 0.04
-#define Ki 0.000005
-#define Kd 10.0
-#define REGISTER OCR2B
-#define THRESHOLD 4 // ADC_NOISE + 1
-#endif
-
-#include <PID_AutoTune_v0.h>
 #include <PID_v1.h>
 
-byte ATuneModeRemember = 2;
 double input = 80, output = 50, setpoint = SET_POINT;
 double kp = 0.8, ki = 0.4, kd = 0.0;
 
+#if 0
 //double kpmodel = 1.5, taup = 100, theta[50];
 double outputStart = 5;
 double aTuneStep = 25, aTuneNoise = 4, aTuneStartValue = 100;
@@ -39,14 +21,18 @@ unsigned int aTuneLookBack = 20;
 
 boolean tuning = false;
 unsigned long serialTime = 0;
+#endif
 
 PID myPID(&input, &output, &setpoint, kp, ki, kd, DIRECT);
 
+#if 0
 PID_ATune aTune(&input, &output);
 int32_t last_time = 0;
 float last_error = 0;
 float cum_error = 0;
+#endif
 
+#if 0
 int32_t pid_correction(int32_t delta_t, int32_t voltage) {
     // delta time
     // int32_t delta_t = (now - last_time);
@@ -71,7 +57,9 @@ int32_t pid_correction(int32_t delta_t, int32_t voltage) {
 
     return correction;
 }
+#endif
 
+#if 0
 void AutoTuneHelper(boolean start) {
     if (start)
         ATuneModeRemember = myPID.GetMode();
@@ -128,6 +116,7 @@ void SerialReceive() {
             changeAutoTune();
     }
 }
+#endif
 
 void setup() {
     // put your setup code here, to run once:
@@ -167,6 +156,7 @@ void setup() {
     myPID.SetSampleTime(SAMPLE_PERIOD);
     myPID.SetMode(AUTOMATIC);
 
+#if 0
     if (tuning) {
         tuning = false;
         changeAutoTune();
@@ -174,12 +164,14 @@ void setup() {
     }
 
     last_time = millis();
+#endif
 }
 
 void loop() {
 
     input = analogRead(A0);
 
+#if 0
     if (tuning) {
         byte val = (aTune.Runtime());
         if (val != 0) {
@@ -195,15 +187,19 @@ void loop() {
     } else {
         myPID.Compute();
     }
+#endif
 
+    myPID.Compute();
     analogWrite(3, output);
 
+#if 0
     // send-receive with processing if it's time
     if (millis() > serialTime) {
         SerialReceive();
         SerialSend();
         serialTime += 500;
     }
+#endif
 #if 0
     char str[128];
     snprintf(str, 64, "%ld, %d", (long)input, OCR2B);
