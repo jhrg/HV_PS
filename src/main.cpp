@@ -4,7 +4,8 @@
  */
 #include <Arduino.h>
 
-#define ADC_NOISE 3      // counts
+//#define ADC_NOISE 3      // counts
+#define HV_PS_INPUT A0
 #define SAMPLE_PERIOD 10 // ms
 #define SET_POINT 455    // ~ 200v
 
@@ -27,7 +28,7 @@ void setup() {
     DDRC = B00111111;
     DDRB = B00111111;
 
-    pinMode(A0, INPUT);
+    pinMode(HV_PS_INPUT, INPUT);
 
     // Use Timer2 for the HV PS control signal
     // COM2B 1:0 --> 1, 0 (non-inverted)
@@ -41,7 +42,7 @@ void setup() {
     // OCR2B is Arduino Pin 3
     OCR2B = 0x010; // 0-bit resolution --> 0x00 - 0xFF
 
-    input = analogRead(A0);
+    input = analogRead(HV_PS_INPUT);
     // setpoint = SET_POINT;
     myPID.SetOutputLimits(10, 150);
     myPID.SetSampleTime(SAMPLE_PERIOD);
@@ -49,7 +50,7 @@ void setup() {
 }
 
 void loop() {
-    input = analogRead(A0);
+    input = analogRead(HV_PS_INPUT);
 #if PID_DIAGNOSTIC
     PORTD |= _BV(PORTD6);
 #endif
