@@ -46,7 +46,7 @@ void setup() {
     // setpoint = SET_POINT;
     myPID.SetOutputLimits(10, 150);
     myPID.SetSampleTime(SAMPLE_PERIOD);
-    myPID.SetMode(AUTOMATIC);
+    myPID.SetMode(AUTOMATIC);  // This turns on the PID; MANUAL mode turns it off
 }
 
 void loop() {
