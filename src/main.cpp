@@ -49,12 +49,20 @@ void setup() {
     myPID.SetMode(AUTOMATIC);  // This turns on the PID; MANUAL mode turns it off
 }
 
+/** 
+ * @brief The simplest input reader. Always reads a value
+ */
+bool read_input(double *in) {
+    *in = analogRead(HV_PS_INPUT);
+    return true;
+}
+
 void loop() {
-    input = analogRead(HV_PS_INPUT);
+    // input = analogRead(HV_PS_INPUT);
 #if PID_DIAGNOSTIC
     PORTD |= _BV(PORTD6);
 #endif
-    myPID.Compute();
+    myPID.Compute(read_input);
 #if PID_DIAGNOSTIC
     PORTD &= ~_BV(PORTD6);
 #endif
