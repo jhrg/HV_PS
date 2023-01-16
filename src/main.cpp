@@ -5,8 +5,9 @@
 #include <Arduino.h>
 
 #define HV_PS_INPUT A0
-#define SAMPLE_PERIOD 10 // ms
-#define SET_POINT 455    // ~ 200v
+#define SAMPLE_PERIOD 10   // ms
+#define SET_POINT 455      // ~ 200v
+#define INITIAL_VALUE 0x8F // 9-bit resolution --> 0x0000 - 0x01FF
 
 #include <PID_v1.h>
 
@@ -43,7 +44,7 @@ void setup() {
     // Set the pre-scaler at 1 (62.5 kHz) and the two high-order bits of WGM
     TCCR1B = _BV(WGM12) | _BV(CS10);
 
-    OCR1B = 0xAF; // 9-bit resolution --> 0x0000 - 0x01FF
+    OCR1B = INITIAL_VALUE; // 9-bit resolution --> 0x0000 - 0x01FF
 
     sei();
 
