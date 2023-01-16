@@ -63,10 +63,11 @@ bool read_input(double *in) {
 }
 
 void loop() {
-    // input = analogRead(HV_PS_INPUT);
 #if PID_DIAGNOSTIC
     PORTD |= _BV(PORTD6);
 #endif
+    // read_input(&input);
+    // myPID.Compute();
     myPID.Compute(read_input);
 #if PID_DIAGNOSTIC
     PORTD &= ~_BV(PORTD6);
