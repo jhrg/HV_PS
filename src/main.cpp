@@ -30,20 +30,25 @@ void setup() {
 
     pinMode(HV_PS_INPUT, INPUT);
 
-    // Use Timer2 for the HV PS control signal
-    // COM2B 1:0 --> 1, 0 (non-inverted)
-    // WGM22:0 --> 1 (0, 0, 1) (phase-correct PWM, 0xFF top)
-    TCCR2A = 0;
-    TCCR2A = _BV(COM2B1) | _BV(WGM20);
-    // Set the pre-scaler at 1 (62.5 kHz)
-    TCCR2B = _BV(CS20);
+    cli();
 
-    // Start out with low voltage
-    // OCR2B is Arduino Pin 3
-    OCR2B = 0x010; // 0-bit resolution --> 0x00 - 0xFF
+    TCCR1A = 0;  // set entire TCCR2A register to 0
+    TCCR1B = 0;  // same for TCCR0B
+    TCNT1 = 0;   // initialize counter value to 0
+
+    // Use Timer1 for the HV PS control signal
+    // Set the timer to Fast PWM. COM1A1:0 --> 1, 0
+    // Set the timer for 10-bit resolution. WGM13:0 --> 0, 1, 1, 1
+    // Set the timer for 9-bit resolution. WGM13:0 --> 0, 1, 1, 0
+    TCCR1A = _BV(COM1B1) | _BV(WGM11);
+    // Set the pre-scaler at 1 (62.5 kHz) and the two high-order bits of WGM
+    TCCR1B = _BV(WGM12) | _BV(CS10);
+
+    OCR1B = 0xFF;  // 9-bit resolution --> 0x0000 - 0x01FF
+
+    sei();
 
     input = analogRead(HV_PS_INPUT);
-    // setpoint = SET_POINT;
     myPID.SetOutputLimits(10, 150);
     myPID.SetSampleTime(SAMPLE_PERIOD);
     myPID.SetMode(AUTOMATIC);  // This turns on the PID; MANUAL mode turns it off
@@ -66,6 +71,6 @@ void loop() {
 #if PID_DIAGNOSTIC
     PORTD &= ~_BV(PORTD6);
 #endif
-    OCR2B = (unsigned char)output;
+    OCR1B = (unsigned char)output;
     // analogWrite(3, output);
 }
